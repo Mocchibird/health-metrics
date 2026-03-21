@@ -1,0 +1,9 @@
+pandas
+appwrite
+streamlit
+python-dotenv
+plotly
+flask
+geocoder
+streamlit_cookies_controller
+cryptography
