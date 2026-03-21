@@ -9,7 +9,7 @@ import sqlite3
 from datetime import datetime, timedelta, timezone
 import geocoder 
 import plotly.express as px
-from werkzeug.security import check_password_hash, generate_password_hash
+from werkzeug.security import check_password_hash
 
 st.set_page_config(layout="wide")
 
@@ -102,25 +102,6 @@ def get_user_by_id(user_id):
             (user_id,),
         ).fetchone()
     return user
-
-
-def register_user(email, password):
-    if not email or not password:
-        st.error("Email and password are required.")
-        return
-
-    if get_user_by_email(email):
-        st.error("An account with this email already exists.")
-        return
-
-    with get_auth_db_connection() as conn:
-        conn.execute(
-            "INSERT INTO users (email, password_hash, created_at) VALUES (?, ?, ?)",
-            (email, generate_password_hash(password), datetime.now(timezone.utc).isoformat()),
-        )
-        conn.commit()
-
-    st.success("Registration successful. You can now log in.")
 
 # Login function
 def login_user(email, password):

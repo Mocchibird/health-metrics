@@ -9,6 +9,7 @@ A Streamlit app for tracking health metrics with local SQLite storage.
 - Add and view health entries with plot and table views
 - Edit and delete entries with confirmation and password re-entry
 - Admin account support for managing all users' entries
+- No in-app user registration (accounts are managed from terminal only)
 
 ## Tech Stack
 
@@ -46,6 +47,38 @@ Configure in `.env`:
 3. Start Streamlit:
 
    streamlit run app.py
+
+## User Management Commands
+
+Run these from the project root:
+
+Important:
+
+- Online/in-app user registration is disabled.
+- Creating and deleting users must be done from terminal commands.
+
+1. Show current users
+
+```bash
+source app/bin/activate && python -c "import sqlite3; c=sqlite3.connect('auth_users.db'); rows=c.execute('SELECT id,email,created_at FROM users ORDER BY id').fetchall(); print('\n'.join(str(r) for r in rows) or 'No users found'); c.close()"
+```
+
+2. Create a user
+
+```bash
+source app/bin/activate && python -c "import sqlite3; from datetime import datetime, timezone; from werkzeug.security import generate_password_hash as h; email='newuser@example.com'; pw='ChangeThisPassword123'; c=sqlite3.connect('auth_users.db'); cur=c.cursor(); cur.execute('INSERT INTO users (email,password_hash,created_at) VALUES (?,?,?)',(email,h(pw),datetime.now(timezone.utc).isoformat())); c.commit(); print('rows_inserted=',cur.rowcount); c.close()"
+```
+
+3. Delete a user
+
+```bash
+source app/bin/activate && python -c "import sqlite3; email='user_to_delete@example.com'; c=sqlite3.connect('auth_users.db'); cur=c.cursor(); cur.execute('DELETE FROM users WHERE lower(email)=lower(?)',(email,)); c.commit(); print('rows_deleted=',cur.rowcount); c.close()"
+```
+
+Notes:
+
+- Replace the example emails/passwords before running commands.
+- Use strong passwords and avoid shell special characters unless escaped.
 
 ## Docker
 
