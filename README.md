@@ -1,6 +1,6 @@
 # Health Metrics App
 
-A private Streamlit app for tracking health metrics with local SQLite storage.
+A Streamlit app for tracking health metrics with local SQLite storage.
 
 ## Features
 
