@@ -39,7 +39,11 @@ Configure in `.env`:
 
 ## Run Locally
 
-1. Create/activate your virtual environment.
+1. Create and activate a virtual environment.
+
+   python3 -m venv .venv
+   source .venv/bin/activate
+
 2. Install dependencies:
 
    pip install -r requirements.txt
@@ -50,7 +54,7 @@ Configure in `.env`:
 
 ## User Management Commands
 
-Run these from the project root:
+Run these from the project root with your virtual environment activated:
 
 Important:
 
@@ -60,19 +64,19 @@ Important:
 1. Show current users
 
 ```bash
-source app/bin/activate && python -c "import sqlite3; c=sqlite3.connect('auth_users.db'); rows=c.execute('SELECT id,email,created_at FROM users ORDER BY id').fetchall(); print('\n'.join(str(r) for r in rows) or 'No users found'); c.close()"
+python -c "import sqlite3; c=sqlite3.connect('auth_users.db'); rows=c.execute('SELECT id,email,created_at FROM users ORDER BY id').fetchall(); print('\n'.join(str(r) for r in rows) or 'No users found'); c.close()"
 ```
 
 2. Create a user
 
 ```bash
-source app/bin/activate && python -c "import sqlite3; from datetime import datetime, timezone; from werkzeug.security import generate_password_hash as h; email='newuser@example.com'; pw='ChangeThisPassword123'; c=sqlite3.connect('auth_users.db'); cur=c.cursor(); cur.execute('INSERT INTO users (email,password_hash,created_at) VALUES (?,?,?)',(email,h(pw),datetime.now(timezone.utc).isoformat())); c.commit(); print('rows_inserted=',cur.rowcount); c.close()"
+python -c "import sqlite3; from datetime import datetime, timezone; from werkzeug.security import generate_password_hash as h; email='newuser@example.com'; pw='ChangeThisPassword123'; c=sqlite3.connect('auth_users.db'); cur=c.cursor(); cur.execute('INSERT INTO users (email,password_hash,created_at) VALUES (?,?,?)',(email,h(pw),datetime.now(timezone.utc).isoformat())); c.commit(); print('rows_inserted=',cur.rowcount); c.close()"
 ```
 
 3. Delete a user
 
 ```bash
-source app/bin/activate && python -c "import sqlite3; email='user_to_delete@example.com'; c=sqlite3.connect('auth_users.db'); cur=c.cursor(); cur.execute('DELETE FROM users WHERE lower(email)=lower(?)',(email,)); c.commit(); print('rows_deleted=',cur.rowcount); c.close()"
+python -c "import sqlite3; email='user_to_delete@example.com'; c=sqlite3.connect('auth_users.db'); cur=c.cursor(); cur.execute('DELETE FROM users WHERE lower(email)=lower(?)',(email,)); c.commit(); print('rows_deleted=',cur.rowcount); c.close()"
 ```
 
 Notes:
