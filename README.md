@@ -1,65 +1,111 @@
-# Health Metrics App
+# Health Metrics
 
-A Streamlit app for tracking health metrics with local SQLite storage.
+A self-hostable Streamlit app for tracking personal health metrics with local SQLite storage, authenticated access, and simple dashboard views.
+
+It is intentionally lightweight: no managed cloud database, no large backend stack, and no complicated deployment requirements. It is designed for personal use and small-scale self-hosting.
 
 ## Features
 
-- Email/password login with encrypted cookie session support
-- Local databases (no managed cloud database required)
-- Add and view health entries with plot and table views
+- Email/password login
+- Encrypted cookie-based session persistence
+- Local SQLite storage for both authentication and metric data
+- Add and view health entries
+- Time-series dashboard with plots and table view
 - Edit and delete entries with confirmation and password re-entry
 - Admin account support for managing all users' entries
-- No in-app user registration (accounts are managed from terminal only)
+- Docker support for simple deployment
 
-## Tech Stack
+### Important:
+- **In-app user registration is disabled.**
+- **Creating and deleting users must be done from the terminal.**
+
+## Metrics tracked
+
+Each health entry can include:
+
+- systolic blood pressure
+- diastolic blood pressure
+- heart rate
+- weight
+- note
+- timestamp
+
+## Tech stack
 
 - Streamlit
 - SQLite
 - Pandas
 - Plotly
 - Cryptography (Fernet)
+- Docker
 
-## Local Databases
+## Local data storage
 
-This app uses two SQLite files:
+The app uses two SQLite databases:
 
-- `auth_users.db`: user authentication records
-- `health_metrics.db`: health entry records
+- `auth_users.db` for user authentication data
+- `health_metrics.db` for health metric entries
 
 No separate database server is required.
 
-## Environment Variables
+## Environment variables
 
-Configure in `.env`:
+Configure the app through a `.env` file:
 
-- `ENCRYPTION_KEY`: Fernet key for cookie encryption
-- `WEBSITE`: URL for Home button
-- `LOCAL_DB_PATH`: path to metrics database (default `health_metrics.db`)
-- `AUTH_DB_PATH`: path to auth database (default `auth_users.db`)
+- `ENCRYPTION_KEY` – Fernet key used for cookie encryption
+- `WEBSITE` – URL used for the Home button
+- `LOCAL_DB_PATH` – path to the health metrics database  
+  Default: `health_metrics.db`
+- `AUTH_DB_PATH` – path to the auth database  
+  Default: `auth_users.db`
 
-## Run Locally
+## Run locally
 
-1. Create and activate a virtual environment.
+1. Create and activate a virtual environment
 
-   python3 -m venv .venv
-   source .venv/bin/activate
+```bash
+python3 -m venv .venv
+source .venv/bin/activate
+```
 
-2. Install dependencies:
+2. Install dependencies
 
-   pip install -r requirements.txt
+```bash
+pip install -r requirements.txt
+```
 
-3. Start Streamlit:
+3. Start the app
 
-   streamlit run app.py
+```bash
+streamlit run app.py
+```
+
+## Docker
+
+Build and run with Docker:
+
+```bash
+docker build -t health-metrics-app .
+docker run -p 8501:8501 --env-file .env health-metrics-app
+```
+The container exposes the Streamlit app on port `8501`
+
+## User management
+
+In-app registration is intentionally disabled.
+
+Users are managed from the terminal by writing directly to the authentication database.  
+The current repository includes example one-line commands for:
+
+- listing users
+- creating users
+- deleting users
+
+This keeps the app simple while still allowing controlled account management.
 
 ## User Management Commands
 
 Run these from the project root with your virtual environment activated:
-
-Important:
-
-- Online/in-app user registration is disabled.
-- Creating and deleting users must be done from terminal commands.
 
 1. Show current users
 
@@ -84,18 +130,17 @@ Notes:
 - Replace the example emails/passwords before running commands.
 - Use strong passwords and avoid shell special characters unless escaped.
 
-## Docker
+## Security notes
 
-Build and run:
+- Sessions are stored using encrypted cookies
+- Edit and delete operations require password re-entry
+- For self-hosted deployments behind a reverse proxy, binding Streamlit to localhost is the safer default
 
-1. docker build -t health-metrics-app .
-2. docker run -p 8501:8501 --env-file .env health-metrics-app
+## Notes
 
-## Security Notes
-
-- Edit and delete operations require password re-entry in the app.
-- If deploying behind Nginx, bind Streamlit to localhost for tighter network exposure.
+This is a small personal project, not a production medical platform.  
+The focus is on lightweight self-hosting, straightforward data entry, and simple visualization.
 
 ## License
 
-MIT License. See LICENSE.
+MIT License. See `LICENSE`.
