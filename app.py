@@ -20,6 +20,7 @@ website = os.getenv('WEBSITE')
 metrics_db_path = os.getenv('LOCAL_DB_PATH', 'health_metrics.db')
 auth_db_path = os.getenv('AUTH_DB_PATH', 'auth_users.db')
 admin_email = "healthmetrics@changh.simplelogin.com"
+DEMO_EMAIL = "demo@demo.local"
 
 # Initialize the cookie controller and encryption suite
 cookie_controller = CookieController()
@@ -103,6 +104,78 @@ def get_user_by_id(user_id):
         ).fetchone()
     return user
 
+# ---------------------------------------------------------------------------
+# Demo mode
+# ---------------------------------------------------------------------------
+# Demo sessions are entirely in-memory: no rows are written to either SQLite
+# database and no cookies are set. That means every visit starts with a clean
+# copy of the pre-prepared sample data, and any additions / edits / deletes
+# made during the session are discarded on logout, browser refresh, or revisit.
+
+def is_demo_user():
+    return bool(st.session_state.get("is_demo"))
+
+
+def _generate_sample_entries():
+    """Build the pre-prepared sample data anchored to "now".
+
+    Dates are regenerated each time a demo session starts so the 30-day
+    dashboard window always contains data. The returned dict is keyed by
+    integer id so update/delete can look entries up the same way the DB
+    flow does.
+    """
+    now = datetime.now(timezone.utc)
+    samples = [
+        # (days_ago, hour, systolic, diastolic, heart_rate, weight, note)
+        (28, 8,  128, 82, 72, 71.5, "Morning reading after coffee"),
+        (26, 9,  125, 80, 70, 71.4, None),
+        (24, 8,  122, 78, 68, 71.3, "Feeling rested"),
+        (22, 9,  130, 84, 74, 71.5, None),
+        (20, 8,  127, 81, 71, 71.2, None),
+        (18, 9,  124, 79, 69, 71.0, "After 30min walk"),
+        (16, 8,  121, 77, 67, 70.9, None),
+        (14, 9,  118, 76, 65, 70.8, None),
+        (12, 8,  120, 78, 68, 70.7, "Mild headache earlier"),
+        (10, 9,  123, 80, 70, 70.6, None),
+        (8,  8,  119, 77, 66, 70.5, None),
+        (6,  9,  117, 75, 64, 70.4, "Slept well"),
+        (5,  8,  122, 79, 69, 70.3, None),
+        (4,  9,  124, 81, 71, 70.3, None),
+        (3,  8,  120, 78, 67, 70.2, None),
+        (2,  9,  118, 76, 65, 70.1, "Good workout yesterday"),
+        (1,  8,  121, 78, 68, 70.1, None),
+        (0,  9,  119, 77, 66, 70.0, "Today's reading"),
+    ]
+    entries = {}
+    for idx, (days_ago, hour, sys_bp, dia_bp, hr, wt, note) in enumerate(samples, start=1):
+        dt = (now - timedelta(days=days_ago)).replace(
+            hour=hour, minute=0, second=0, microsecond=0
+        )
+        entries[idx] = {
+            "id": idx,
+            "email": DEMO_EMAIL,
+            "date": dt.isoformat(),
+            "systolic_bp": sys_bp,
+            "diastolic_bp": dia_bp,
+            "heart_rate": hr,
+            "weight": wt,
+            "note": note,
+            "created_at": dt.isoformat(),
+        }
+    return entries
+
+
+def start_demo_session():
+    """Log the visitor into a fresh demo session (no DB / no cookies)."""
+    st.session_state["is_demo"] = True
+    st.session_state["email"] = DEMO_EMAIL
+    st.session_state["user"] = {"id": "demo"}
+    st.session_state["demo_entries"] = _generate_sample_entries()
+    st.session_state["demo_next_id"] = max(st.session_state["demo_entries"].keys()) + 1
+    st.success("Demo session started. Your changes won't be saved.")
+    st.rerun()
+
+
 # Login function
 def login_user(email, password):
     user = get_user_by_email(email)
@@ -120,14 +193,20 @@ def login_user(email, password):
 
 # Logout function
 def logout_user():
+    was_demo = st.session_state.get("is_demo", False)
     st.session_state.pop("user", None)
     st.session_state.pop("email", None)
     st.session_state.pop("view", None)
     st.session_state.pop("pending_action", None)
     st.session_state.pop("admin_feedback", None)
     st.session_state.pop("confirm_action_password", None)
-    cookie_controller.remove("email")
-    cookie_controller.remove("user")
+    st.session_state.pop("is_demo", None)
+    st.session_state.pop("demo_entries", None)
+    st.session_state.pop("demo_next_id", None)
+    if not was_demo:
+        # Demo sessions never set cookies, so don't bother touching them.
+        cookie_controller.remove("email")
+        cookie_controller.remove("user")
     st.success("Logout successful!")
     st.rerun()
 
@@ -167,6 +246,22 @@ def load_session_from_cookies():
 
 # Get all documents from the database with pagination
 def get_all_documents():
+    if is_demo_user():
+        entries = st.session_state.get("demo_entries", {})
+        rows = sorted(entries.values(), key=lambda r: r["date"])
+        documents = [
+            {
+                "date": r["date"],
+                "systolic_bp": r["systolic_bp"],
+                "diastolic_bp": r["diastolic_bp"],
+                "heart_rate": r["heart_rate"],
+                "weight": r["weight"],
+                "note": r["note"],
+            }
+            for r in rows
+        ]
+        return {"documents": documents}
+
     with get_metrics_db_connection() as conn:
         rows = conn.execute(
             """
@@ -191,6 +286,26 @@ def get_all_user_emails():
 
 
 def get_entries_for_email(email):
+    if is_demo_user() and email == DEMO_EMAIL:
+        entries = st.session_state.get("demo_entries", {})
+        return sorted(
+            (
+                {
+                    "id": r["id"],
+                    "email": r["email"],
+                    "date": r["date"],
+                    "systolic_bp": r["systolic_bp"],
+                    "diastolic_bp": r["diastolic_bp"],
+                    "heart_rate": r["heart_rate"],
+                    "weight": r["weight"],
+                    "note": r["note"],
+                }
+                for r in entries.values()
+            ),
+            key=lambda r: r["date"],
+            reverse=True,
+        )
+
     with get_metrics_db_connection() as conn:
         rows = conn.execute(
             """
@@ -205,6 +320,20 @@ def get_entries_for_email(email):
 
 
 def update_entry(entry_id, new_data):
+    if is_demo_user():
+        entries = st.session_state.get("demo_entries", {})
+        if entry_id in entries:
+            entries[entry_id] = {
+                **entries[entry_id],
+                "date": new_data["date"],
+                "systolic_bp": new_data["systolic_bp"],
+                "diastolic_bp": new_data["diastolic_bp"],
+                "heart_rate": new_data["heart_rate"],
+                "weight": new_data["weight"],
+                "note": new_data["note"],
+            }
+        return
+
     with get_metrics_db_connection() as conn:
         conn.execute(
             """
@@ -226,6 +355,11 @@ def update_entry(entry_id, new_data):
 
 
 def delete_entry(entry_id):
+    if is_demo_user():
+        entries = st.session_state.get("demo_entries", {})
+        entries.pop(entry_id, None)
+        return
+
     with get_metrics_db_connection() as conn:
         conn.execute("DELETE FROM health_entries WHERE id = ?", (entry_id,))
         conn.commit()
@@ -264,19 +398,30 @@ def show_data_change_confirm_dialog():
         st.text("Original data")
         st.code(json.dumps(pending["original"], indent=2), language="json")
 
-    password_confirmation = st.text_input(
-        "Re-enter your password to confirm",
-        type="password",
-        key="confirm_action_password",
-    )
+    if is_demo_user():
+        st.info("Demo mode: changes are session-only and reset on your next visit.")
+        password_confirmation = None
+    else:
+        password_confirmation = st.text_input(
+            "Re-enter your password to confirm",
+            type="password",
+            key="confirm_action_password",
+        )
 
     col_yes, col_no = st.columns(2)
     if col_yes.button("Yes, Proceed", type="primary", use_container_width=True):
-        if not password_confirmation:
+        if is_demo_user():
+            confirmed = True
+        elif not password_confirmation:
             st.error("Password is required to confirm this action.")
+            confirmed = False
         elif not verify_current_user_password(password_confirmation):
             st.error("Password confirmation failed.")
+            confirmed = False
         else:
+            confirmed = True
+
+        if confirmed:
             if action == "update":
                 update_entry(pending["entry_id"], pending["new"])
                 st.session_state["admin_feedback"] = "Entry updated successfully."
@@ -300,6 +445,24 @@ def add_document(data):
         st.error("You must be logged in to add data.")
         return
     data["email"] = st.session_state["email"]
+
+    if is_demo_user():
+        entries = st.session_state.setdefault("demo_entries", {})
+        next_id = st.session_state.get("demo_next_id", 1)
+        entries[next_id] = {
+            "id": next_id,
+            "email": DEMO_EMAIL,
+            "date": data["date"],
+            "systolic_bp": data["systolic_bp"],
+            "diastolic_bp": data["diastolic_bp"],
+            "heart_rate": data["heart_rate"],
+            "weight": data["weight"],
+            "note": data["note"],
+            "created_at": datetime.now(timezone.utc).isoformat(),
+        }
+        st.session_state["demo_next_id"] = next_id + 1
+        return
+
     with get_metrics_db_connection() as conn:
         conn.execute(
             """
@@ -565,6 +728,13 @@ def main():
 
         # User-specific data display
         with st.sidebar:
+            if is_demo_user():
+                st.info(
+                    "**Demo mode** — you're viewing sample data. "
+                    "Anything you add, edit, or delete is session-only and "
+                    "will be reset on your next visit."
+                )
+                st.markdown("---")
             homepage()
             add_data()
             st.markdown("---")
@@ -590,6 +760,15 @@ def main():
         login_password = st.text_input("Login Password", type="password", key="login_password")
         if st.button("Login"):
             login_user(login_email, login_password)
+
+        st.markdown("---")
+        st.caption(
+            "No account? Try a demo with pre-prepared sample data. "
+            "You can add, edit, and delete entries, but changes are session-only "
+            "and reset on your next visit."
+        )
+        if st.button("Try the Demo"):
+            start_demo_session()
 
 if __name__ == '__main__':
     main()
